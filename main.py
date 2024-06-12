@@ -1,5 +1,6 @@
 import sys
 
+import convolution
 from image import Image
 import kernel
 import time
@@ -44,8 +45,10 @@ def main(argc, argv):
     # Apply the selected kernel and measure the time
 
     start_time = time.time()
-    result_image = image.convolution(selected_kernel)
+    print("Applying the kernel...")
+    result_image = convolution.convolution_numba(image.data, selected_kernel.kernel)
     end_time = time.time()
+    result_image = Image.from_data(result_image)
 
     print("Time taken to apply the kernel: ", end_time - start_time, " seconds")
 
@@ -61,3 +64,4 @@ if __name__ == "__main__":
 
     # main(len(sys.argv), sys.argv)
     main(3, ["main.py", "images/IMG_1331.jpg", "output_big.jpg"])
+

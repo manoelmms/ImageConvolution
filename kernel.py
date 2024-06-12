@@ -9,10 +9,10 @@ def gaussian_kernel(size: int, sigma: float):
     :param sigma: The standard deviation of the Gaussian distribution
     :return: The Gaussian kernel
     """
-    kernel = np.fromfunction(lambda x, y: (1 / (2 * np.pi * sigma ** 2)) * np.exp(
-        -((x - size // 2) ** 2 + (y - size // 2) ** 2) / (2 * sigma ** 2)), (size, size))
-
-    kernel = np.rint(kernel * 255)  # Round the values to the nearest integer
+    # Create a 1D array of size 'size' with values from -(size - 1) / 2 to (size - 1) / 2
+    ax = np.linspace(-(size - 1) / 2., (size - 1) / 2., size)
+    gauss = np.exp(-0.5 * np.square(ax) / np.square(sigma))  # Apply the Gaussian function
+    kernel = np.outer(gauss, gauss)  # Create a 2D Gaussian kernel
     return kernel / kernel.sum()  # Normalize the kernel
 
 
@@ -57,8 +57,8 @@ sharpen_kernel = Kernel2D(np.array([[0, -1, 0],
 #                                            [-1, -1, -1]]))
 
 emboss_kernel = Kernel2D(np.array([[-1, 0, 0],
-                                  [0, 0, 0],
-                                  [0, 0, 1]]))
+                                   [0, 0, 0],
+                                   [0, 0, 1]]))
 
 # emboss_kernel = Kernel2D(np.array([[-1, 0, 0, 0, 0],
 #                                   [0, -1, 0, 0, 0],

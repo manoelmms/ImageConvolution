@@ -1,6 +1,11 @@
 import numpy as np
 import cv2
 from kernel import Kernel2D
+import multiprocessing as mp
+from multiprocessing import shared_memory
+import threading as th
+from concurrent.futures import ThreadPoolExecutor
+from numba import jit
 
 
 class Image:
@@ -31,19 +36,16 @@ class Image:
         image.pitch = image.width
         return image
 
-    def padding(self, padding_size: int):
+    def padding(self, padding_size_x: int, padding_size_y: int):
         """
         Pad the image with zeros
-        :param padding_size: The size of the padding
+        :param padding_size_x: The padding size in the x-direction
+        :param padding_size_y: The padding size in the y-direction
         :return: The padded image
         """
-        if self.channels == 1:
-            self.pitch = self.width + 2 * padding_size  # Update the pitch
-            self.data = cv2.copyMakeBorder(self.data, padding_size, padding_size, padding_size, padding_size,
-                                           cv2.BORDER_REFLECT)  # Pad the image with reflection
-        else:
-            self.data = cv2.copyMakeBorder(self.data, padding_size, padding_size, padding_size, padding_size,
-                                           cv2.BORDER_REFLECT)  # Pad the image with reflection
+        self.data = cv2.copyMakeBorder(self.data, padding_size_x, padding_size_x, padding_size_y, padding_size_y,
+                                       cv2.BORDER_REFLECT)
+        self.pitch = self.width + 2 * padding_size_x
 
     def save_image(self, output_path: str):
         """
@@ -59,27 +61,3 @@ class Image:
         cv2.imshow(self.name, self.data)
         cv2.waitKey(0)
         cv2.destroyAllWindows()
-
-    def convolution(self, kernel: Kernel2D):
-        """
-        Perform a convolution operation on the image
-        :param kernel: The kernel to perform the convolution
-        :return: The convoluted image
-        """
-
-        # Initialize the new image
-        new_image = np.zeros((self.height, self.width, self.channels), dtype=np.uint8)
-
-        # TODO: Optimize padding (without using memory!)
-        # Pad the image
-        padding_size = kernel.height // 2
-        self.padding(padding_size)
-
-        # Perform the convolution operation
-        for y in range(self.height):
-            for x in range(self.width):
-                for c in range(self.channels):
-                    new_image[y, x, c] = np.sum(
-                        self.data[y:y + kernel.height, x:x + kernel.width, c] * kernel.kernel)
-
-        return Image.from_data(new_image)
