@@ -62,6 +62,6 @@ def main(argc, argv):
 
 if __name__ == "__main__":
 
-    # main(len(sys.argv), sys.argv)
-    main(3, ["main.py", "images/IMG_1331.jpg", "output_big.jpg"])
+    main(len(sys.argv), sys.argv)
+    # main(3, ["main.py", "images/dog.jpg", "output_big.jpg"])
 
