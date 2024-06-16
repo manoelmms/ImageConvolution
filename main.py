@@ -43,12 +43,40 @@ def main(argc, argv):
             raise ValueError("Invalid kernel choice")
 
     # Apply the selected kernel and measure the time
+    print("\nSelect the model you want to use: ")
+    print("1. Sequential")
+    print("2. Pool")
+    print("3. Block")
+    print("4. Numba")
+    model_choice = int(input("Enter the model number: "))
 
-    start_time = time.time()
-    print("Applying the kernel...")
-    result_image = convolution.convolution_numba(image.data, selected_kernel.kernel)
-    end_time = time.time()
-    result_image = Image.from_data(result_image)
+    if model_choice == 1:
+        start_time = time.time()
+        print("Applying the kernel...")
+        result_image = convolution.convolution(image.data, selected_kernel.kernel)
+        end_time = time.time()
+        result_image = Image.from_data(result_image)
+
+    else:
+        print("\nSelect the number of threads/processes you want to use: ")
+        num_threads = int(input("Enter the number of threads/processes: "))
+        start_time = time.time()
+        print("Applying the kernel...")
+        match model_choice:
+            case 2:
+                result_image = convolution.convolution_pool(image.data, selected_kernel.kernel, num_threads)
+                end_time = time.time()
+                result_image = Image.from_data(result_image)
+            case 3:
+                result_image = convolution.convolution_block(image.data, selected_kernel.kernel, num_threads)
+                end_time = time.time()
+                result_image = Image.from_data(result_image)
+            case 4:
+                result_image = convolution.convolution_numba(image.data, selected_kernel.kernel, num_threads)
+                end_time = time.time()
+                result_image = Image.from_data(result_image)
+            case _:
+                raise ValueError("Invalid model choice")
 
     print("Time taken to apply the kernel: ", end_time - start_time, " seconds")
 
