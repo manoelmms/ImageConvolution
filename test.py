@@ -1,10 +1,14 @@
+import os
 import unittest
 import cv2
 import numpy as np
 import convolution
 import kernel
 import image
+from image import Image
 import time
+import pandas as pd
+from subprocess import call, Popen, PIPE
 
 
 def get_gradient_2d(start, stop, width, height, is_horizontal):
@@ -25,9 +29,11 @@ def get_gradient_3d(width, height, start_list, stop_list, is_horizontal_list):
 
 def create_bw_image(width, height, path=None):
     data = np.random.randint(0, 255, (height, width, 1), np.uint8)
-    img = cv2.cvtColor(data, cv2.COLOR_GRAY2RGB)  # Convert to RGB
+    # Convert to Gray
+    img = cv2.cvtColor(data, cv2.COLOR_GRAY2RGB)
     if path:
-        cv2.imwrite(path, img)
+        cv2.imwrite(path, img[:, :, 0])
+    print("Image created with shape", img.shape[:2])
     return data
 
 
@@ -36,6 +42,7 @@ def create_color_image(width, height, path=None):
     img = cv2.cvtColor(data, cv2.COLOR_BGR2RGB)  # Convert to RGB
     if path:
         cv2.imwrite(path, img)
+    print("Image created with shape", img.shape[:2])
     return data
 
 
@@ -59,13 +66,13 @@ class Corretude(unittest.TestCase):
         threads = [1, 2, 4, 8]
         images = []
         for w, h in zip(width, height):
-            images.append(image.Image(f"./images/corretude_False_{w}_{h}.jpg").data)
+            images.append(image.Image(f"./images/corretude/corretude_False_{w}_{h}.jpg").data)
 
         print("Começando testes de corretude")
         print("Testando imagens de tamanho", [(img.shape[0], img.shape[1]) for img in images])
 
-        for thread in threads:
-            for img in images:
+        for img in images:
+            for thread in threads:
                 print("Testando imagem de tamanho", img.shape)
                 print("Testando com thread = ", thread)
 
@@ -92,13 +99,13 @@ class Corretude(unittest.TestCase):
         threads = [1, 2, 4, 8]
         images = []
         for w, h in zip(width, height):
-            images.append(image.Image(f"./images/corretude_True_{w}_{h}.jpg").data)
+            images.append(image.Image(f"./images/corretude/corretude_True_{w}_{h}.jpg").data)
 
         print("Começando testes de corretude")
         print("Testando imagens de tamanho", [(img.shape[0], img.shape[1]) for img in images])
 
-        for thread in threads:
-            for img in images:
+        for img in images:
+            for thread in threads:
                 print("Testando imagem de tamanho", img.shape)
                 print("Testando com thread = ", thread)
 
@@ -119,6 +126,46 @@ class Corretude(unittest.TestCase):
                                  convolution.convolution_numba(img, kernel.edge_detection_kernel(3), thread).all())
                 print(" -numba OK")
 
+    def test_concurrent_C(self):
+        # Use the C code to test the performance
+
+        # Compile the C code
+        call(["gcc", "-o", "main", "./C/main.c", "./C/convolution.c", "-lpthread", "-Wall"])
+
+        # Create the binary files
+        image.folder_to_bin("./images/corretude", "./bin/corr")
+
+        bin_path = []
+        for root, _, files in os.walk("./bin/corr"):
+            for file in files:
+                if file.endswith('.bin'):
+                    bin_path.append(file)
+            break
+
+        print("Começando testes de corretude")
+        print("Testando binários - ", [file for file in bin_path])
+
+        for file in bin_path:
+            for thread in [1, 2, 4, 8]:
+                # sequencial result
+                print("Running C code for", file, "with", thread, "threads")
+                process_seq = Popen(["./main", f"./bin/corr/{file}", "./bin/kernel/edge_detection_kernel.bin", "1",
+                                     "out_seq_0.bin"])
+                process = Popen(["./main", f"./bin/corr/{file}", "./bin/kernel/edge_detection_kernel.bin", str(thread),
+                                 "out_0.bin"])
+
+                # Wait for the process to finish
+                process_seq.wait()
+                process_seq.kill()
+                process.wait()
+                process.kill()
+
+                # Assert the results
+                self.assertEqual(image.Image.read_image_bin("./out_seq", 1).data.all(),
+                                 image.Image.read_image_bin("./out", 1).data.all())
+
+                print(" -OK")
+
 
 class Performance(unittest.TestCase):
 
@@ -128,39 +175,102 @@ class Performance(unittest.TestCase):
         threads = [1, 2, 4, 8]
         images = []
         for w, h in zip(width, height):
-            images.append(image.Image(f"./images/performance_True_{w}_{h}.jpg").data)
+            images.append(image.Image(f"./images/performance/performance_True_{w}_{h}.jpg").data)
+
+        # Creating csv with time results
+        results = pd.DataFrame(columns=["Sequential", "Pool", "Block", "Numba",
+                                        "Thread Number", "Image Size"])
+        result_list = []
 
         print("Começando testes de performance")
         print("Testando imagens de tamanho", [(img.shape[0], img.shape[1]) for img in images])
-
-        for thread in threads:
+        for i in range(5):
+            print("# Iteração - ", i)
             for img in images:
                 print("Testando imagem de tamanho", img.shape)
-                print("Testando com thread = ", thread)
 
                 start = time.time()
                 convolution.convolution(img, kernel.edge_detection_kernel(3))
-                print("Sequential:", time.time() - start)
+                total_seq = time.time() - start
+                print("Sequential:", total_seq)
 
-                start = time.time()
-                convolution.convolution_pool(img, kernel.edge_detection_kernel(3), thread)
-                print("Pool:", time.time() - start)
+                for thread in threads:
+                    print("Testando com thread = ", thread)
 
-                start = time.time()
-                convolution.convolution_block(img, kernel.edge_detection_kernel(3), thread)
-                print("Block:", time.time() - start)
+                    start = time.time()
+                    convolution.convolution_pool(img, kernel.edge_detection_kernel(3), thread)
+                    total_pool = time.time() - start
+                    print("Pool:", total_pool)
 
-                start = time.time()
-                convolution.convolution_thread(img, kernel.edge_detection_kernel(3), thread)
-                print("Thread:", time.time() - start)
+                    start = time.time()
+                    convolution.convolution_block(img, kernel.edge_detection_kernel(3), thread)
+                    total_block = time.time() - start
+                    print("Block:", total_block)
 
-                start = time.time()
-                convolution.convolution_numba(img, kernel.edge_detection_kernel(3), thread)
-                print("Numba:", time.time() - start)
+                    # start = time.time()
+                    # convolution.convolution_thread(img, kernel.edge_detection_kernel(3), thread)
+                    # total_thread = time.time() - start
+                    # print("Thread:", total_thread)
+
+                    start = time.time()
+                    convolution.convolution_numba(img, kernel.edge_detection_kernel(3), thread)
+                    total_numba = time.time() - start
+                    print("Numba:", total_numba)
+
+                    result_list.append([total_seq, total_pool, total_block, total_numba,
+                                        thread, img.shape])
+
+        results = pd.DataFrame(result_list, columns=["Sequential", "Pool", "Block", "Numba",
+                                                     "Thread Number", "Image Size"])
+
+        results.to_csv("results.csv")
+
+    def test_performance_C(self):
+        # Use the C code to test the performance
+
+        # Compile the C code
+        call(["gcc", "-o", "main", "./C/main.c", "./C/convolution.c", "-lpthread", "-Wall"])
+
+        # Create the binary files
+        image.folder_to_bin("./images/performance", "./bin/perf")
+
+        bin_path = []
+        for root, _, files in os.walk("./bin/perf"):
+            for file in files:
+                if file.endswith('.bin'):
+                    bin_path.append(file)
+            break  # Only the first level
+
+        # Creating csv with time results
+        results = pd.DataFrame(columns=["C", "Thread Number", "Image Size"])
+        result_list = []
+
+        print("Começando testes de performance")
+        print("Testando binários - ", [file for file in bin_path])
+
+        # Run the C code for each image and thread number five times
+        for i in range(5):
+            print("# Iteração - ", i)
+            for file in bin_path:
+                for thread in [1, 2, 4, 8]:
+                    print("Running C code for", file, "with", thread, "threads")
+                    process = Popen(
+                        ["./main", f"./bin/perf/{file}", "./bin/kernel/edge_detection_kernel.bin", str(thread),
+                         "out.bin"], stdout=PIPE, stderr=PIPE)
+
+                    stdout, stderr = process.communicate()
+                    process.wait()  # Wait for the process to finish
+
+                    print("Output:", stdout.decode())
+                    # Save the results
+                    result_list.append([float(stdout.decode()), thread, file])
+
+        results = pd.DataFrame(result_list, columns=["C", "Thread Number", "Image Size"])
+        results.to_csv("results_c.csv")
 
 
 if __name__ == '__main__':
-    create_test_images([333, 500, 1024], [333, 500, 768], "./images/corretude", True)
-    create_test_images([333, 500, 1024], [333, 500, 768], "./images/corretude", False)
-    create_test_images([500, 1000, 5000], [500, 1000, 5000], "./images/performance", True)
-    # unittest.main()
+    create_test_images([333, 500, 1024], [333, 500, 768], "./images/corretude/corretude", True)
+    create_test_images([333, 500, 1024], [333, 500, 768], "./images/corretude/corretude", False)
+    create_test_images([500, 1000, 5000], [500, 1000, 5000], "./images/performance/performance", True)
+    unittest.main()

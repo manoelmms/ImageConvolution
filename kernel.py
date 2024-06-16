@@ -108,7 +108,7 @@ if __name__ == "__main__":
     # Save the kernels to binary files
     identity_kernel.save_kernel_bin("./bin/identity_kernel.bin")
     sharpen_kernel.save_kernel_bin("./bin/sharpen_kernel.bin")
-    Kernel2D(gaussian_kernel(3, 1)).save_kernel_bin("./bin/gaussian_kernel.bin")
-    Kernel2D(edge_detection_kernel(3)).save_kernel_bin("./bin/edge_detection_kernel.bin")
+    Kernel2D(gaussian_kernel(3, 1)).save_kernel_bin("bin/kernel/gaussian_kernel.bin")
+    Kernel2D(edge_detection_kernel(3)).save_kernel_bin("bin/kernel/edge_detection_kernel.bin")
 
 

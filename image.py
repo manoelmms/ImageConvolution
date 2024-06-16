@@ -10,8 +10,19 @@ class Image:
         Initialize the image
         :param filepath: The path to the image
         """
-        self.data = cv2.imread(filepath)
-        self.height, self.width, self.channels = self.data.shape
+        self.data = cv2.imread(filepath, cv2.IMREAD_UNCHANGED)  # Read the image in the original format
+        if self.data is None:
+            raise FileNotFoundError(f"File {filepath} not found")
+
+        self.height = self.data.shape[0]
+        self.width = self.data.shape[1]
+
+        if len(self.data.shape) == 2:
+            self.channels = 1
+            self.data = self.data[:, :, np.newaxis]
+        else:
+            self.channels = self.data.shape[2]
+
         self.filepath = filepath
         self.name = filepath.split('/')[-1].split('.')[0]
         self.pitch = self.width  # Can be used to optimize the padding
