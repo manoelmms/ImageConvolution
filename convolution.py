@@ -1,9 +1,7 @@
-from multiprocessing import shared_memory
 from numba import jit, prange, set_num_threads
 import numpy as np
 import multiprocessing as mp
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor
-from numba import cuda
+from concurrent.futures import ThreadPoolExecutor
 
 
 def calculate_convolution(image: np.ndarray, x, y, c, kernel: np.ndarray, new_image: np.ndarray = None):
@@ -83,7 +81,7 @@ def calculate_convolution_padless(image: np.ndarray, x, y, c, kernel: np.ndarray
     return result
 
 
-def convolution(image: np.ndarray, kernel: np.ndarray):
+def convolution(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
     """
     Perform a convolution operation on the image
     :param image:  data
@@ -103,12 +101,13 @@ def convolution(image: np.ndarray, kernel: np.ndarray):
     return new_image
 
 
-def convolution_mp_pool_01(image: np.ndarray, kernel: np.ndarray):
+def convolution_pool(image: np.ndarray, kernel: np.ndarray, num_processes: int) -> np.ndarray:
     """
     Perform a convolution operation on the image using multiple processes
     Strategy #1: using the Pool class
     :param image: The image data
     :param kernel: The kernel to perform the convolution
+    :param num_processes: The number of processes to use
     :return: The convoluted image
     """
     image_height, image_width, image_channels = image.shape
@@ -117,36 +116,13 @@ def convolution_mp_pool_01(image: np.ndarray, kernel: np.ndarray):
     new_image = np.zeros(image.shape, dtype=np.uint8)
 
     # Perform the convolution operation in parallel using map
-    with (mp.Pool(mp.cpu_count()) as pool):
+    with (mp.Pool(num_processes) as pool):
         for c in range(image_channels):
             new_image[:, :, c] = np.array(pool.starmap(calculate_convolution_padless,
                                                        [(image, x, y, c, kernel) for x in range(image_height)
                                                         for y in range(image_width)])).reshape(image_height,
                                                                                                image_width)
     return new_image
-
-
-# def convolution_mp_pool_02(image: np.ndarray, kernel: np.ndarray):  # Very slow
-#     """
-#     Perform a convolution operation on the image using multiple processes
-#     Strategy #2: using ProcessPoolExecutor
-#     :param image: The image data
-#     :param kernel: The kernel to perform the convolution
-#     :return: The convoluted image
-#     """
-#
-#     image_height, image_width, image_channels = image.shape
-#
-#     # Initialize the new image
-#     new_image = np.zeros(image.shape, dtype=np.uint8)
-#
-#     # Perform the convolution operation in parallel using ProcessPoolExecutor
-#     with ProcessPoolExecutor(mp.cpu_count()) as executor:
-#         for c in range(image_channels):
-#             for x, y in [(x, y) for x in range(image_height) for y in range(image_width)]:
-#                 new_image = executor.submit(calculate_convolution_padless, image, x, y, c, kernel)
-#
-#     return new_image
 
 
 def calculate_convolution_block(image: np.ndarray, x_i, y_i, x_f, y_f, c, kernel: np.ndarray) -> np.ndarray:
@@ -182,13 +158,13 @@ def calculate_convolution_block(image: np.ndarray, x_i, y_i, x_f, y_f, c, kernel
     return result
 
 
-def convolution_mp_pool_03(image: np.ndarray, kernel: np.ndarray):
+def convolution_block(image: np.ndarray, kernel: np.ndarray, num_processes: int) -> np.ndarray:
     """
     Perform a convolution operation on the image using multiple processes
-    Strategy #4: divide the image into chunks and process them in parallel, then merge the results
-    Using mp.Pool
+    Strategy #2: divide the image into chunks and process them in parallel, then merge the results
     :param image: The image data
     :param kernel: The kernel to perform the convolution
+    :param num_processes: The number of processes to use
     :return: The convoluted image
     """
     image_height, image_width, image_channels = image.shape
@@ -197,55 +173,19 @@ def convolution_mp_pool_03(image: np.ndarray, kernel: np.ndarray):
     new_image = np.empty(image.shape, dtype=np.uint8)
 
     # Divide the image into chunks and the rest of the division into the last chunk
-    chunk_size = image_height // mp.cpu_count()
+    chunk_size = image_height // num_processes
     chunks = []
-    for p in range(mp.cpu_count()):
-        chunks.append((p * chunk_size, (p + 1) * chunk_size if p != mp.cpu_count() - 1 else image_height))
+    for p in range(num_processes):
+        chunks.append((p * chunk_size, (p + 1) * chunk_size if p != num_processes - 1 else image_height))
 
     # print(chunks)
 
     # Perform the convolution operation in parallel using map
-    with (mp.Pool(mp.cpu_count()) as pool):
+    with (mp.Pool(num_processes) as pool):
         for c in range(image_channels):
             result.append(pool.starmap(calculate_convolution_block,
-                                          [(image, x_i, 0, x_f, image_width, c, kernel) for x_i, x_f in chunks]))
+                                       [(image, x_i, 0, x_f, image_width, c, kernel) for x_i, x_f in chunks]))
             # concatenate the results
-            # concatenate the results
-            for i, chunk in enumerate(result):
-                new_image[:, :, c] = np.vstack(chunk)
-    return new_image
-
-
-def convolution_mp_pool_04(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:  # Almost no difference from 03
-    """
-    Perform a convolution operation on the image using multiple processes
-    Strategy #4: divide the image into chunks and process them in parallel, then merge the results
-    Using mp.Pool ASYNC
-    :param image: The image data
-    :param kernel: The kernel to perform the convolution
-    :return: The convoluted image
-    """
-    image_height, image_width, image_channels = image.shape
-
-    # Initialize the new image
-    result = []
-    new_image = np.empty(image.shape, dtype=np.uint8)
-
-    # Divide the image into chunks and the rest of the division into the last chunk
-    chunk_size = image_height // mp.cpu_count()
-    chunks = []
-    for p in range(mp.cpu_count()):
-        chunks.append((p * chunk_size, (p + 1) * chunk_size if p != mp.cpu_count() - 1 else image_height))
-
-    # print(chunks)
-
-    # Perform the convolution operation in parallel using map async
-    with (mp.Pool(mp.cpu_count()) as pool):
-        for c in range(image_channels):
-            map_result = pool.starmap_async(calculate_convolution_block,
-                                            [(image, x_i, 0, x_f, image_width, c, kernel) for x_i, x_f in chunks])
-            result.append(map_result.get())
-
             # concatenate the results
             for i, chunk in enumerate(result):
                 new_image[:, :, c] = np.vstack(chunk)
@@ -253,15 +193,16 @@ def convolution_mp_pool_04(image: np.ndarray, kernel: np.ndarray) -> np.ndarray:
 
 
 @jit(nopython=True, parallel=True)
-def convolution_numba(image: np.ndarray, kernel: np.ndarray):
+def convolution_numba(image: np.ndarray, kernel: np.ndarray, num_processes: int) -> np.ndarray:
     """
     Perform a convolution operation on the image using multiple processes
     Strategy #5 : using numba.jit and parallel=True decorator and prange for parallelization
     :param image: The image data
     :param kernel: The kernel to perform the convolution
+    :param num_processes: The number of processes to use
     :return: The convoluted image
     """
-
+    set_num_threads(num_processes)
     image_height, image_width, image_channels = image.shape
 
     # Initialize the new image
@@ -281,12 +222,13 @@ def convolution_numba(image: np.ndarray, kernel: np.ndarray):
     return new_image
 
 
-def convolution_th_pool_01(image: np.ndarray, kernel: np.ndarray):
+def convolution_thread(image: np.ndarray, kernel: np.ndarray, num_processes: int) -> np.ndarray:
     """
     Perform a convolution operation on the image using multiple threads
     Strategy #1: using the ThreadPoolExecutor and saving directly to the new image
     :param image: The image data
     :param kernel: The kernel to perform the convolution
+    :param num_processes: The number of processes to use
     :return: The convoluted image
     """
     image_height, image_width, image_channels = image.shape
@@ -295,7 +237,7 @@ def convolution_th_pool_01(image: np.ndarray, kernel: np.ndarray):
     new_image = np.zeros(image.shape, dtype=np.uint8)
 
     # Perform the convolution operation in parallel using ThreadPoolExecutor
-    with ThreadPoolExecutor(mp.cpu_count()) as executor:
+    with ThreadPoolExecutor(num_processes) as executor:
         for c in range(image_channels):
             executor.map(calculate_convolution_padless,
                          [(image, x, y, c, kernel, new_image)
