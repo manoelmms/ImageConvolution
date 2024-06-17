@@ -92,4 +92,3 @@ if __name__ == "__main__":
 
     main(len(sys.argv), sys.argv)
     # main(3, ["main.py", "images/dog.jpg", "output.jpg"])
-

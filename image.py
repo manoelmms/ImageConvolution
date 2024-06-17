@@ -47,6 +47,7 @@ class Image:
         """
         Read the image from a binary file
         :param path: The path to read the image
+        :param channels: The number of channels in the image
         """
         data = []
         for i in range(channels):

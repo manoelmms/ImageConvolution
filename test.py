@@ -5,7 +5,6 @@ import numpy as np
 import convolution
 import kernel
 import image
-from image import Image
 import time
 import pandas as pd
 from subprocess import call, Popen, PIPE
@@ -68,13 +67,15 @@ class Corretude(unittest.TestCase):
         for w, h in zip(width, height):
             images.append(image.Image(f"./images/corretude/corretude_False_{w}_{h}.jpg").data)
 
-        print("Começando testes de corretude")
+        print('-'*50)
+        print("\n Começando testes de corretude em Python com imagens coloridas")
         print("Testando imagens de tamanho", [(img.shape[0], img.shape[1]) for img in images])
 
         for img in images:
+            print("\nTestando imagem de tamanho", img.shape)
+
             for thread in threads:
-                print("Testando imagem de tamanho", img.shape)
-                print("Testando com thread = ", thread)
+                print("\nTestando com thread = ", thread)
 
                 sequential = convolution.convolution(img, kernel.edge_detection_kernel(3))
                 self.assertEqual(sequential.all(),
@@ -92,6 +93,8 @@ class Corretude(unittest.TestCase):
                 self.assertEqual(sequential.all(),
                                  convolution.convolution_numba(img, kernel.edge_detection_kernel(3), thread).all())
                 print(" -numba OK")
+
+        print("\nTestes finalizados com sucesso! Todos os testes de corretude de Python em Color passaram.")
 
     def test_concurrent_bw(self):
         width = [333, 500, 1024]
@@ -101,13 +104,15 @@ class Corretude(unittest.TestCase):
         for w, h in zip(width, height):
             images.append(image.Image(f"./images/corretude/corretude_True_{w}_{h}.jpg").data)
 
-        print("Começando testes de corretude")
+        print('-'*50)
+        print("\nComeçando testes de corretude")
         print("Testando imagens de tamanho", [(img.shape[0], img.shape[1]) for img in images])
 
         for img in images:
+            print("\nTestando imagem de tamanho", img.shape)
+
             for thread in threads:
-                print("Testando imagem de tamanho", img.shape)
-                print("Testando com thread = ", thread)
+                print("\nTestando com thread = ", thread)
 
                 sequential = convolution.convolution(img, kernel.edge_detection_kernel(3))
                 self.assertEqual(sequential.all(),
@@ -125,6 +130,8 @@ class Corretude(unittest.TestCase):
                 self.assertEqual(sequential.all(),
                                  convolution.convolution_numba(img, kernel.edge_detection_kernel(3), thread).all())
                 print(" -numba OK")
+
+        print("\nTestes finalizados com sucesso! Todos os testes de corretude de Python em BW passaram.")
 
     def test_concurrent_C(self):
         # Use the C code to test the performance
@@ -142,13 +149,14 @@ class Corretude(unittest.TestCase):
                     bin_path.append(file)
             break
 
-        print("Começando testes de corretude")
+        print('-'*50)
+        print("\nComeçando testes de corretude")
         print("Testando binários - ", [file for file in bin_path])
 
         for file in bin_path:
             for thread in [1, 2, 4, 8]:
                 # sequencial result
-                print("Running C code for", file, "with", thread, "threads")
+                print("\nRunning C code for", file, "with", thread, "threads")
                 process_seq = Popen(["./main", f"./bin/corr/{file}", "./bin/kernel/edge_detection_kernel.bin", "1",
                                      "out_seq_0.bin"])
                 process = Popen(["./main", f"./bin/corr/{file}", "./bin/kernel/edge_detection_kernel.bin", str(thread),
@@ -166,6 +174,49 @@ class Corretude(unittest.TestCase):
 
                 print(" -OK")
 
+        print("\nTestes finalizados com sucesso! Todos os testes de corretude de C passaram.")
+
+    def test_comparison_python_C(self):
+        # Compare the results of the python code with the C code
+        # Compile the C code
+        call(["gcc", "-o", "main", "./C/main.c", "./C/convolution.c", "-lpthread", "-Wall"])
+
+        # Create the binary files
+        image.folder_to_bin("./images/corretude", "./bin/corr")
+
+        bin_path = []
+        for root, _, files in os.walk("./bin/corr"):
+            for file in files:
+                if file.endswith('.bin'):
+                    bin_path.append(file)
+            break
+
+        print('-'*50)
+        print("\nComeçando testes de comparação")
+        print("Testando binários - ", [file for file in bin_path])
+
+        for file in bin_path:
+            print("\nRunning Python code for", file)
+
+            file_python = file[:-6]  # Remove the extension and the channel number
+            img = image.Image.read_image_bin(f"./bin/corr/{file_python}", 1)
+            sequential = convolution.convolution(img.data, kernel.edge_detection_kernel(3))
+
+            print("Running C code for", file)
+            process = Popen(
+                ["./main", f"./bin/corr/{file}", "./bin/kernel/edge_detection_kernel.bin", "1", "out.bin"],
+                stdout=PIPE, stderr=PIPE)
+            stdout, stderr = process.communicate()
+            process.wait()  # Wait for the process to finish
+
+            print("Output:", stdout.decode())
+            # Assert the results
+
+            self.assertEqual(sequential.all(), image.Image.read_image_bin("./out", 1).data.all())
+            print(" -OK")
+
+        print("\nTestes finalizados com sucesso! A saída em C foi igual a saída em Python.")
+
 
 class Performance(unittest.TestCase):
 
@@ -177,17 +228,15 @@ class Performance(unittest.TestCase):
         for w, h in zip(width, height):
             images.append(image.Image(f"./images/performance/performance_True_{w}_{h}.jpg").data)
 
-        # Creating csv with time results
-        results = pd.DataFrame(columns=["Sequential", "Pool", "Block", "Numba",
-                                        "Thread Number", "Image Size"])
         result_list = []
 
-        print("Começando testes de performance")
+        print('-'*50)
+        print("\nComeçando testes de performance em Python")
         print("Testando imagens de tamanho", [(img.shape[0], img.shape[1]) for img in images])
         for i in range(5):
             print("# Iteração - ", i)
             for img in images:
-                print("Testando imagem de tamanho", img.shape)
+                print("\nTestando imagem de tamanho", img.shape)
 
                 start = time.time()
                 convolution.convolution(img, kernel.edge_detection_kernel(3))
@@ -195,7 +244,7 @@ class Performance(unittest.TestCase):
                 print("Sequential:", total_seq)
 
                 for thread in threads:
-                    print("Testando com thread = ", thread)
+                    print("\nTestando com thread = ", thread)
 
                     start = time.time()
                     convolution.convolution_pool(img, kernel.edge_detection_kernel(3), thread)
@@ -225,6 +274,8 @@ class Performance(unittest.TestCase):
 
         results.to_csv("results.csv")
 
+        print("\nTeste de performance em Python finalizado com sucesso!")
+
     def test_performance_C(self):
         # Use the C code to test the performance
 
@@ -241,11 +292,10 @@ class Performance(unittest.TestCase):
                     bin_path.append(file)
             break  # Only the first level
 
-        # Creating csv with time results
-        results = pd.DataFrame(columns=["C", "Thread Number", "Image Size"])
         result_list = []
 
-        print("Começando testes de performance")
+        print('-'*50)
+        print("\nComeçando testes de performance em C")
         print("Testando binários - ", [file for file in bin_path])
 
         # Run the C code for each image and thread number five times
@@ -253,7 +303,7 @@ class Performance(unittest.TestCase):
             print("# Iteração - ", i)
             for file in bin_path:
                 for thread in [1, 2, 4, 8]:
-                    print("Running C code for", file, "with", thread, "threads")
+                    print("\nRunning C code for", file, "with", thread, "threads")
                     process = Popen(
                         ["./main", f"./bin/perf/{file}", "./bin/kernel/edge_detection_kernel.bin", str(thread),
                          "out.bin"], stdout=PIPE, stderr=PIPE)
@@ -267,6 +317,8 @@ class Performance(unittest.TestCase):
 
         results = pd.DataFrame(result_list, columns=["C", "Thread Number", "Image Size"])
         results.to_csv("results_c.csv")
+
+        print("\nTeste de performance em C finalizado com sucesso!")
 
 
 if __name__ == '__main__':
