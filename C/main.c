@@ -38,7 +38,7 @@ Img *le_imagem_bin(const char *arquivo) {
     
     descritor_arquivo = fopen(arquivo, "rb");
     if (!descritor_arquivo) {
-        fprintf(stderr, "Erro de abertura do arquivo\n");
+        fprintf(stderr, "Erro de abertura do arquivo de imagem\n");
         return NULL;
     }
 
@@ -87,7 +87,7 @@ int escreve_imagem_bin(const char *arquivo, Img *img) {
 
     descritor_arquivo = fopen(arquivo, "wb");  // abre o arquivo para escrita em binario
     if (!descritor_arquivo) {
-        fprintf(stderr, "Erro de abertura do arquivo\n");
+        fprintf(stderr, "Erro de abertura do arquivo de imagem\n");
         return -1;
     }
 
@@ -120,13 +120,13 @@ Matriz *le_matriz_bin(const char *arquivo) {
     size_t ret; //retorno da funcao de leitura no arquivo de entrada
 
     if (!matriz) {
-        fprintf(stderr, "Erro de alocação da matriz\n");
+        fprintf(stderr, "Erro de alocação da matriz de kernel\n");
         return NULL;
     }
     
     descritor_arquivo = fopen(arquivo, "rb");
     if (!descritor_arquivo) {
-        fprintf(stderr, "Erro de abertura do arquivo\n");
+        fprintf(stderr, "Erro de abertura do arquivo de kernel\n");
         return NULL;
     }
 
@@ -138,19 +138,19 @@ Matriz *le_matriz_bin(const char *arquivo) {
 
     ret = fread(&matriz->colunas, sizeof(int), 1, descritor_arquivo);
     if (!ret) {
-        fprintf(stderr, "Erro de leitura das dimensões da matriz\n");
+        fprintf(stderr, "Erro de leitura das dimensões da matriz de kernel\n");
         return NULL;
     }
 
     matriz->elementos = (float *) malloc(sizeof(float) * matriz->linhas * matriz->colunas);
     if (!matriz->elementos) {
-        fprintf(stderr, "Erro de alocação da matriz\n");
+        fprintf(stderr, "Erro de alocação da matriz de kernel\n");
         return NULL;
     }
 
     ret = fread(matriz->elementos, sizeof(float), matriz->linhas * matriz->colunas, descritor_arquivo);
     if (ret < matriz->linhas * matriz->colunas) {
-        fprintf(stderr, "Erro de leitura dos elementos da matriz\n");
+        fprintf(stderr, "Erro de leitura dos elementos da matriz de kernel\n");
         return NULL;
     }
     
