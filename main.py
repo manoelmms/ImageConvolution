@@ -60,6 +60,9 @@ def main(argc, argv):
     else:
         print("\nSelect the number of threads/processes you want to use: ")
         num_threads = int(input("Enter the number of threads/processes: "))
+        if num_threads < 1:
+            raise ValueError("Invalid number of threads/processes")
+
         start_time = time.time()
         print("Applying the kernel...")
         match model_choice:
