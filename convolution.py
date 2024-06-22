@@ -1,6 +1,7 @@
 from numba import jit, prange, set_num_threads
 import numpy as np
 import multiprocessing as mp
+from multiprocessing import cpu_count
 from concurrent.futures import ThreadPoolExecutor
 
 
@@ -199,10 +200,14 @@ def convolution_numba(image: np.ndarray, kernel: np.ndarray, num_processes: int)
     Strategy #5 : using numba.jit and parallel=True decorator and prange for parallelization
     :param image: The image data
     :param kernel: The kernel to perform the convolution
-    :param num_processes: The number of processes to use
+    :param num_processes: The number of threads to use
     :return: The convoluted image
     """
+
+    # Numba does not support more than the number of physical cores
+    # without setting the number of threads manually before using ENV variables
     set_num_threads(num_processes)
+
     image_height, image_width, image_channels = image.shape
 
     # Initialize the new image
